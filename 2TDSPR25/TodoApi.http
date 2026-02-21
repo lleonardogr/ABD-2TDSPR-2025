@@ -1,0 +1,25 @@
+@TodoApi_HostAddress = http://localhost:5127
+
+POST {{TodoApi_HostAddress}}/todoitems
+Content-Type: application/json
+
+{
+  "name":"limpar a casa",
+  "isComplete":true
+}
+
+###
+GET {{TodoApi_HostAddress}}/todoitems
+
+###
+GET {{TodoApi_HostAddress}}/todoitems/1
+
+###
+PUT {{TodoApi_HostAddress}}/todoitems/1
+Content-Type: application/json
+
+{
+  "id": 1,
+  "name": "limpar a cozinha",
+  "isComplete": true
+}
