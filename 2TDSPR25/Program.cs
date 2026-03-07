@@ -59,7 +59,15 @@ builder.Services.AddOpenApi(options =>
         {
             Title = "API de Tarefas",
             Version = "1.0.0",
-            Description = "API para gerenciamento de tarefas",
+            Description = """
+                          API para gerenciamento de tarefas",
+                          
+                          Boa vizinhança:
+                          
+                          Recomendamos que seja feita apenas 10 requisições por segundo no máximo, 
+                          caso haja exageros de uso, você receberá o status code 429 (Too Many Requests).
+                          As consultas são monitoradas por IP ou pelo header User-Agent, caso persista o abuso da api, seu IP ou app pode ser bloqueado.
+                          """,
             License = new OpenApiLicense()
             {
                Name  = "MIT",
