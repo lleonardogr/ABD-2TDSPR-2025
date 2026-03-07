@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Threading.RateLimiting;
 using _2TDSPR25;
 using _2TDSPR25.Endpoints;
 using IdempotentAPI.Cache.DistributedCache.Extensions.DependencyInjection;
@@ -24,6 +25,29 @@ builder.Services.AddIdempotentMinimalAPI(new IdempotencyOptions());
 builder.Services.AddDistributedMemoryCache();
 builder.Services.AddIdempotentAPIUsingDistributedCache();
 #endregion
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? httpContext.Request.Headers.Host.ToString(),
+            factory: partition => new FixedWindowRateLimiterOptions
+            {
+                AutoReplenishment = true,
+                PermitLimit = 10,
+                QueueLimit = 0,
+                Window = TimeSpan.FromSeconds(60)
+            }));
+
+    options.OnRejected = async (context, cancellationToken) =>
+    {
+        context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        context.HttpContext.Response.ContentType = "text/plain";
+        context.HttpContext.Response.Headers.RetryAfter = "60";
+        await context.HttpContext.Response.WriteAsync("Muitas requisições. Por favor, tente novamente mais tarde.", 
+            cancellationToken);
+    };
+});
 
 #region OpenAPI / Swagger / Scalar
 builder.Services.AddOpenApi(options =>
@@ -54,6 +78,8 @@ builder.Services.AddOpenApi(options =>
 #endregion
 
 var app = builder.Build();
+
+app.UseRateLimiter();
 
 if (app.Environment.IsDevelopment())
 {
