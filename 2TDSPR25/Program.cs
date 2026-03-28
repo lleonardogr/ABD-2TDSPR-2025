@@ -2,12 +2,15 @@ using System.ComponentModel;
 using System.Threading.RateLimiting;
 using _2TDSPR25;
 using _2TDSPR25.Endpoints;
+using HealthChecks.UI.Client;
 using IdempotentAPI.Cache.DistributedCache.Extensions.DependencyInjection;
 using IdempotentAPI.Core;
 using IdempotentAPI.Extensions.DependencyInjection;
 using IdempotentAPI.MinimalAPI;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.OpenApi;
 using Scalar.AspNetCore;
 
@@ -36,7 +39,7 @@ builder.Services.AddRateLimiter(options =>
                 AutoReplenishment = true,
                 PermitLimit = 10,
                 QueueLimit = 0,
-                Window = TimeSpan.FromSeconds(60)
+                Window = TimeSpan.FromSeconds(1)
             }));
 
     options.OnRejected = async (context, cancellationToken) =>
@@ -48,6 +51,24 @@ builder.Services.AddRateLimiter(options =>
             cancellationToken);
     };
 });
+
+builder.Services.AddHealthChecks()
+    .AddOracle(
+        connectionString: builder.Configuration.GetConnectionString("FiapOracle"),
+        name: "oracle-fiap",
+        failureStatus: HealthStatus.Degraded,
+        tags: ["Db", "Oracle"],
+        healthQuery: "SELECT 1 FROM DUAL",
+        timeout: TimeSpan.FromSeconds(300)
+    );
+
+builder.Services.AddHealthChecksUI(options =>
+{
+    options.SetEvaluationTimeInSeconds(150);
+    options.MaximumHistoryEntriesPerEndpoint(5);
+    options.SetApiMaxActiveRequests(1);
+    options.AddHealthCheckEndpoint("api", "/health");
+}).AddInMemoryStorage();
 
 #region OpenAPI / Swagger / Scalar
 builder.Services.AddOpenApi(options =>
@@ -86,6 +107,17 @@ builder.Services.AddOpenApi(options =>
 #endregion
 
 var app = builder.Build();
+
+app.MapHealthChecks("/health", new HealthCheckOptions
+{
+    Predicate = _ => true,
+    ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse
+});
+
+app.MapHealthChecksUI(options =>
+{
+    options.UIPath = "/health-ui";
+});
 
 app.UseRateLimiter();
 
